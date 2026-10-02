@@ -89,10 +89,16 @@ apiRouter.post('/player/login', (req, res) => {
 
 apiRouter.get('/player/:nickname', (req, res) => {
   const { nickname } = req.params;
-  const player = dbStore.getPlayerByNickname(nickname);
-  if (!player) {
-    return res.status(404).json({ error: 'Jogador não encontrado.' });
+  const clean = decodeURIComponent(nickname).trim();
+
+  if (clean.length < 3 || clean.length > 32) {
+    return res.status(400).json({
+      error: 'O nickname deve conter entre 3 e 32 caracteres.'
+    });
   }
+
+  const player = dbStore.getOrCreatePlayer(clean);
+
   return res.json(player);
 });
 
