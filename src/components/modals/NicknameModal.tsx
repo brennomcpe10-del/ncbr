@@ -91,7 +91,7 @@ export const NicknameModal: React.FC = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <input
             type="text"
             value={nickname}
@@ -121,7 +121,7 @@ export const NicknameModal: React.FC = () => {
           )}
 
           <button
-            type="submit"
+            type="button"
             onClick={() => {
               // Explicit click handler in addition to the form submit handler.
               void submitLogin();
@@ -131,7 +131,7 @@ export const NicknameModal: React.FC = () => {
           >
             {submitting ? 'Entrando...' : 'Entrar'}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );
