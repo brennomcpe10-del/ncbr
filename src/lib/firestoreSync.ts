@@ -385,6 +385,45 @@ export async function deleteOrderFromFirestore(id: string) {
   await deleteDoc(doc(db, 'orders', id));
 }
 
+function playerDocIdFromNickname(nickname: string): string {
+  const bytes = new TextEncoder().encode(nickname.trim().toLowerCase());
+  const hex = Array.from(bytes)
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+  return `player-${hex}`;
+}
+
+export async function getOrCreatePlayerInFirestore(nickname: string): Promise<Player> {
+  const clean = nickname.trim();
+  const playerRef = doc(db, 'users', playerDocIdFromNickname(clean));
+  const snapshot = await getDoc(playerRef);
+
+  if (snapshot.exists()) {
+    const existing = { ...snapshot.data(), id: snapshot.id } as Player;
+    const updated: Player = {
+      ...existing,
+      nickname: existing.nickname || clean,
+      lastActive: new Date().toISOString()
+    };
+    await setDoc(playerRef, updated);
+    return updated;
+  }
+
+  const now = new Date().toISOString();
+  const player: Player = {
+    id: playerRef.id,
+    nickname: clean,
+    createdAt: now,
+    lastActive: now,
+    activeVips: [],
+    totalSpent: 0,
+    ordersCount: 0
+  };
+
+  await setDoc(playerRef, player);
+  return player;
+}
+
 export async function saveUserToFirestore(player: Player) {
   await setDoc(doc(db, 'users', player.id), player);
 }
