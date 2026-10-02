@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Player } from '../types/index.ts';
-import { api } from '../lib/api.ts';
+import { getOrCreatePlayerInFirestore } from '../lib/firestoreSync.ts';
 import { useToast } from './ToastContext.tsx';
 
 interface PlayerContextType {
@@ -27,16 +27,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const loadSavedPlayer = useCallback(async () => {
     try {
       const savedNick = localStorage.getItem(STORAGE_KEY);
-      if (savedNick) {
-        const p = await api.getPlayer(savedNick);
-        setPlayer(p);
-      } else {
-        // If not logged in yet, prompt the user smoothly with the nickname modal
+
+      if (!savedNick) {
         setIsLoginModalOpen(true);
+        return;
       }
+
+      const restoredPlayer = await getOrCreatePlayerInFirestore(savedNick);
+      setPlayer(restoredPlayer);
+      localStorage.setItem(STORAGE_KEY, restoredPlayer.nickname);
     } catch (err) {
       console.warn('Could not restore saved player session:', err);
       localStorage.removeItem(STORAGE_KEY);
+      setPlayer(null);
+      setIsLoginModalOpen(true);
     } finally {
       setLoading(false);
     }
@@ -47,17 +51,28 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [loadSavedPlayer]);
 
   const login = async (nickname: string): Promise<boolean> => {
+    const clean = nickname.trim();
+
+    if (clean.length < 3 || clean.length > 32) {
+      showError('O nickname deve conter entre 3 e 32 caracteres.');
+      return false;
+    }
+
     try {
       setLoading(true);
-      const res = await api.loginPlayer(nickname);
-      setPlayer(res.player);
-      localStorage.setItem(STORAGE_KEY, res.player.nickname);
+      const playerFromFirestore = await getOrCreatePlayerInFirestore(clean);
+
+      setPlayer(playerFromFirestore);
+      localStorage.setItem(STORAGE_KEY, playerFromFirestore.nickname);
       setIsLoginModalOpen(false);
-      showSuccess(`Bem-vindo ao NetCraftBR, ${res.player.nickname}!`);
+      showSuccess(`Bem-vindo ao NetCraftBR, ${playerFromFirestore.nickname}!`);
       return true;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Falha ao conectar com esse nickname.';
-      showError(msg);
+      console.error('Player login error:', err);
+      const msg = err instanceof Error
+        ? err.message
+        : 'Não foi possível salvar seu nickname. Tente novamente.';
+      showError(`Erro ao entrar: ${msg}`);
       return false;
     } finally {
       setLoading(false);
@@ -70,12 +85,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setPlayer(null);
     localStorage.removeItem(STORAGE_KEY);
+    setIsLoginModalOpen(true);
   };
 
   const refreshPlayer = async () => {
     if (!player) return;
+
     try {
-      const updated = await api.getPlayer(player.nickname);
+      const updated = await getOrCreatePlayerInFirestore(player.nickname);
       setPlayer(updated);
     } catch (err) {
       console.error('Error refreshing player data:', err);
