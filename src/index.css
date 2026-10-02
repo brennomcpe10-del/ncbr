@@ -1,58 +1,29 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-heading: 'Rajdhani', 'Chakra Petch', sans-serif;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-
-  body {
-    font-family: var(--font-sans);
-    background-color: #06090e;
-    color: #f1f5f9;
-    overflow-x: hidden;
-    letter-spacing: -0.01em;
-    min-height: 100vh;
-  }
-
-  h1, h2, h3, h4, .font-heading {
-    font-family: var(--font-heading);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f4f4f5;
+  background: #05080c;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
-/* 3D Minecraft Text Shadow */
-.mc-3d-text {
-  text-shadow: 
-    0 2px 0 #000,
-    0 4px 0 #000,
-    0 6px 12px rgba(0, 0, 0, 0.9),
-    0 0 25px rgba(0, 230, 118, 0.4);
+* { box-sizing: border-box; }
+
+html { background: #05080c; }
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #05080c;
 }
 
-.mc-green-glow {
-  text-shadow: 
-    0 2px 0 #005a20,
-    0 4px 0 #003612,
-    0 0 20px rgba(0, 230, 118, 0.7);
-}
+button, input { font: inherit; }
 
-/* Subtle scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+button { cursor: pointer; }
 
-::-webkit-scrollbar-track {
-  background: #06090e;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 230, 118, 0.2);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 230, 118, 0.4);
-}
+::-webkit-scrollbar { width: 7px; }
+::-webkit-scrollbar-track { background: #05080c; }
+::-webkit-scrollbar-thumb { background: rgba(52,211,153,.22); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(52,211,153,.4); }
