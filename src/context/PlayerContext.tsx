@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Player } from '../types/index.ts';
-import { getOrCreatePlayerInFirestore, saveUserToFirestore } from '../lib/firestoreSync.ts';
 import { useToast } from './ToastContext.tsx';
 
 interface PlayerContextType {
@@ -15,22 +14,20 @@ interface PlayerContextType {
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
-
 const STORAGE_KEY = 'netcraftbr_player_nickname';
 
-function createLocalPlayer(nickname: string, existing?: Partial<Player>): Player {
+function buildPlayer(nickname: string): Player {
+  const clean = nickname.trim();
   const now = new Date().toISOString();
 
   return {
-    id: existing?.id || `local-${nickname.trim().toLowerCase().replace(/[^a-z0-9_\-.]/g, '-')}`,
-    nickname: existing?.nickname || nickname.trim(),
-    createdAt: existing?.createdAt || now,
+    id: `player-${clean.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`,
+    nickname: clean,
+    createdAt: now,
     lastActive: now,
-    activeVips: existing?.activeVips || [],
-    totalSpent: existing?.totalSpent || 0,
-    ordersCount: existing?.ordersCount || 0,
-    avatarUrl: existing?.avatarUrl,
-    bio: existing?.bio
+    activeVips: [],
+    totalSpent: 0,
+    ordersCount: 0
   };
 }
 
@@ -40,89 +37,68 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const { showSuccess, showError } = useToast();
 
-  const syncPlayerInBackground = useCallback(async (nickname: string) => {
+  useEffect(() => {
     try {
-      const remotePlayer = await getOrCreatePlayerInFirestore(nickname);
-      setPlayer(current => {
-        if (!current || current.nickname.toLowerCase() !== remotePlayer.nickname.toLowerCase()) {
-          return current;
-        }
-        localStorage.setItem(STORAGE_KEY, remotePlayer.nickname);
-        return remotePlayer;
-      });
-    } catch (err) {
-      console.warn('Firestore player sync skipped:', err);
+      const savedNickname = localStorage.getItem(STORAGE_KEY);
+
+      if (savedNickname && savedNickname.trim().length >= 3) {
+        setPlayer(buildPlayer(savedNickname));
+        setIsLoginModalOpen(false);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        setIsLoginModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Erro ao restaurar jogador:', error);
+      setIsLoginModalOpen(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
-
-  const loadSavedPlayer = useCallback(async () => {
-    const savedNick = localStorage.getItem(STORAGE_KEY);
-
-    if (!savedNick) {
-      setLoading(false);
-      setIsLoginModalOpen(true);
-      return;
-    }
-
-    const localPlayer = createLocalPlayer(savedNick);
-    setPlayer(localPlayer);
-    setLoading(false);
-
-    void syncPlayerInBackground(savedNick);
-  }, [syncPlayerInBackground]);
-
-  useEffect(() => {
-    void loadSavedPlayer();
-  }, [loadSavedPlayer]);
 
   const login = async (nickname: string): Promise<boolean> => {
     const clean = nickname.trim();
 
     if (clean.length < 3 || clean.length > 32) {
-      showError('O nickname deve conter entre 3 e 32 caracteres.');
+      showError('O nickname deve ter entre 3 e 32 caracteres.');
       return false;
     }
 
-    const localPlayer = createLocalPlayer(clean);
+    try {
+      const newPlayer = buildPlayer(clean);
 
-    // A entrada no site não depende de API ou Firestore.
-    setPlayer(localPlayer);
-    localStorage.setItem(STORAGE_KEY, localPlayer.nickname);
-    setIsLoginModalOpen(false);
-    showSuccess(`Bem-vindo ao NetCraftBR, ${localPlayer.nickname}!`);
+      // O login do site é local e imediato.
+      localStorage.setItem(STORAGE_KEY, clean);
+      setPlayer(newPlayer);
+      setIsLoginModalOpen(false);
 
-    // Sincronização remota acontece sem bloquear o login.
-    void syncPlayerInBackground(clean);
-
-    // Best effort: também tenta manter o jogador salvo mesmo se a leitura remota falhar.
-    void saveUserToFirestore(localPlayer).catch(err => {
-      console.warn('Could not save local player to Firestore:', err);
-    });
-
-    return true;
+      showSuccess(`Bem-vindo ao NetCraftBR, ${clean}!`);
+      return true;
+    } catch (error) {
+      console.error('Erro ao entrar com nickname:', error);
+      showError('Não foi possível entrar. Tente novamente.');
+      return false;
+    }
   };
 
   const logout = () => {
-    if (player) {
-      showSuccess(`Até logo, ${player.nickname}!`);
-    }
+    const current = player;
     setPlayer(null);
     localStorage.removeItem(STORAGE_KEY);
     setIsLoginModalOpen(true);
+
+    if (current) {
+      showSuccess(`Até logo, ${current.nickname}!`);
+    }
   };
 
   const refreshPlayer = async () => {
     if (!player) return;
 
-    const localPlayer = createLocalPlayer(player.nickname, player);
-    setPlayer(localPlayer);
-
-    try {
-      const updated = await getOrCreatePlayerInFirestore(player.nickname);
-      setPlayer(updated);
-    } catch (err) {
-      console.warn('Could not refresh player from Firestore:', err);
-    }
+    setPlayer({
+      ...player,
+      lastActive: new Date().toISOString()
+    });
   };
 
   return (
@@ -145,8 +121,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
+
   if (!context) {
     throw new Error('usePlayer must be used within a PlayerProvider');
   }
+
   return context;
 };
